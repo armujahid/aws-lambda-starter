@@ -1,13 +1,12 @@
 """AWS Lambda builder utility."""
 
-import json
 import os
 import shutil
 import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Set
 
 from rich.console import Console
 
@@ -103,7 +102,7 @@ class LambdaBuilder:
                 else:
                     shutil.copy(item, output_path / item.name)
 
-        console.print(f"[bold green]Combined Lambda layer built successfully[/]")
+        console.print("[bold green]Combined Lambda layer built successfully[/]")
         return output_path
 
     def build_libs_layer(self) -> Path:

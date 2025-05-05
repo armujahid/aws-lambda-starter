@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
-import shutil
 
 from rich.console import Console
 
@@ -100,7 +99,7 @@ class LambdaInvoker:
                 layer_logical_id = "SharedLibsLayer"
 
                 # Start with basic template
-                sam_template = f"""
+                sam_template = """
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
@@ -153,7 +152,7 @@ Resources:
                 console.print("[bold green]Lambda invocation successful:[/]")
                 console.print(result.stdout)
             except subprocess.CalledProcessError as e:
-                console.print(f"[bold red]Error invoking Lambda:[/]")
+                console.print("[bold red]Error invoking Lambda:[/]")
                 console.print(e.stderr)
                 if e.stdout:
                     console.print("Output:")

@@ -1,13 +1,12 @@
 """AWS Lambda layer builder with uv integration."""
 
-import json
 import os
 import shutil
 import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import List
 
 from rich.console import Console
 

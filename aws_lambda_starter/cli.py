@@ -1,7 +1,6 @@
 """AWS Lambda Starter CLI."""
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,7 +8,6 @@ from typing import List, Optional
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
 from aws_lambda_starter.builder import LambdaBuilder

@@ -1,7 +1,5 @@
 """Hello World Lambda function."""
 
-import json
-import os
 from typing import Any, Dict
 
 import lib_common

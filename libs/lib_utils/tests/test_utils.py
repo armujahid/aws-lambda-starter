@@ -1,7 +1,6 @@
 """Tests for lib_utils package."""
 
 import json
-import pytest
 from lib_utils import create_success_response, create_error_response, ApiResponse
 
 
