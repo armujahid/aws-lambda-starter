@@ -40,14 +40,9 @@ aws-lambda-starter/
    cd aws-lambda-starter
    ```
 
-2. Install the project dependencies:
+2. Install all dependencies (including development dependencies):
    ```
-   uv pip install -e .
-   ```
-
-3. Install the development dependencies:
-   ```
-   uv pip install --dev
+   uv sync
    ```
 
 ## Usage
