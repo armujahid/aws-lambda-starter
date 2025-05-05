@@ -176,6 +176,7 @@ class LayerBuilder:
 
                     # Install the wheel
                     install_cmd = [
+                        "uv",
                         "pip",
                         "install",
                         "--target",

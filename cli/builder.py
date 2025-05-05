@@ -187,6 +187,7 @@ class LambdaBuilder:
             try:
                 subprocess.run(
                     [
+                        "uv",
                         "pip",
                         "install",
                         "-r",
