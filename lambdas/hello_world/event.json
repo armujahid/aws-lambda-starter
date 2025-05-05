@@ -1,0 +1,22 @@
+{
+  "body": "{\"name\": \"Test User\"}",
+  "resource": "/{proxy+}",
+  "path": "/hello",
+  "httpMethod": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "queryStringParameters": {
+    "param1": "value1",
+    "param2": "value2"
+  },
+  "pathParameters": {
+    "proxy": "hello"
+  },
+  "requestContext": {
+    "identity": {
+      "sourceIp": "127.0.0.1"
+    }
+  },
+  "isBase64Encoded": false
+}
