@@ -15,14 +15,14 @@ console = Console()
 
 class LambdaInvoker:
     """Lambda function local invoker using AWS SAM CLI."""
-    
+
     def __init__(
-        self, 
+        self,
         base_dir: Path,
         build_dir: Path = Path("./dist"),
     ):
         """Initialize invoker.
-        
+
         Args:
             base_dir: Base directory of the project
             build_dir: Directory containing built Lambda artifacts
@@ -30,34 +30,36 @@ class LambdaInvoker:
         self.base_dir = base_dir
         self.build_dir = build_dir
         self.lambda_dir = base_dir / "lambdas"
-    
+
     def invoke_lambda(
-        self, 
-        lambda_name: str, 
+        self,
+        lambda_name: str,
         event_data: Optional[Dict[str, Any]] = None,
         event_file: Optional[str] = None,
     ) -> None:
         """Invoke a Lambda function locally using AWS SAM CLI.
-        
+
         Args:
             lambda_name: Name of the Lambda function to invoke
             event_data: Event data to pass to the Lambda function
             event_file: Path to a JSON file containing event data
         """
         console.print(f"[bold green]Invoking Lambda function locally:[/] {lambda_name}")
-        
+
         # Validate that the lambda exists
         lambda_path = self.lambda_dir / lambda_name
         if not lambda_path.exists():
             raise ValueError(f"Lambda function '{lambda_name}' not found")
-        
+
         # Use provided event_file or event_data, or create a default event
         temp_event_file = None
         if event_file:
             if not os.path.exists(event_file):
-                console.print(f"[bold yellow]Warning:[/] Event file '{event_file}' not found.")
+                console.print(
+                    f"[bold yellow]Warning:[/] Event file '{event_file}' not found."
+                )
                 event_file = None
-        
+
         if not event_file:
             if not event_data:
                 # Check for a default event.json in the lambda directory
@@ -68,7 +70,7 @@ class LambdaInvoker:
                 else:
                     # Create a basic event
                     event_data = {"body": "{}"}
-            
+
             if event_data:
                 # Create a temporary event file
                 fd, temp_event_file = tempfile.mkstemp(suffix=".json")
@@ -76,30 +78,34 @@ class LambdaInvoker:
                     json.dump(event_data, f)
                 event_file = temp_event_file
                 console.print(f"[yellow]Created temporary event file: {event_file}[/]")
-        
+
         # Check if we have an existing layer - EXIT if it doesn't exist
         layer_path = self.base_dir / "dist" / "layers" / "combined"
         if not layer_path.exists() or not any(os.listdir(layer_path)):
-            console.print("[bold red]Error: Layer not found. You need to build the layer first.[/]")
+            console.print(
+                "[bold red]Error: Layer not found. You need to build the layer first.[/]"
+            )
             console.print("[yellow]Run the following command to build the layer:[/]")
             console.print("[yellow]  python main.py build-layer[/]")
-            console.print("[bold red]Exiting. Layer is required for Lambda invocation.[/]")
+            console.print(
+                "[bold red]Exiting. Layer is required for Lambda invocation.[/]"
+            )
             raise ValueError("Layer not found. Run 'python main.py build-layer' first.")
-        
+
         try:
             # Generate a SAM template for local invocation
             with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as temp_sam:
                 # Create a SAM-compatible logical ID (alphanumeric only)
                 logical_id = f"{lambda_name.replace('_', '')}Function"
                 layer_logical_id = "SharedLibsLayer"
-                
+
                 # Start with basic template
                 sam_template = f"""
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
 """
-                
+
                 # Add layer if it exists
                 if layer_path.exists() and any(os.listdir(layer_path)):
                     sam_template += f"""
@@ -111,7 +117,7 @@ Resources:
         - python{self.python_version}
 
 """
-                
+
                 # Add the Lambda function
                 sam_template += f"""
   {logical_id}:
@@ -123,32 +129,27 @@ Resources:
       Architectures:
         - x86_64
 """
-                
+
                 # Add layer reference if layer exists
                 if layer_path.exists() and any(os.listdir(layer_path)):
                     sam_template += f"""
       Layers:
         - !Ref {layer_logical_id}
 """
-                
+
                 temp_sam.write(sam_template.encode())
                 temp_sam_path = temp_sam.name
-            
+
             # Actually invoke SAM CLI
             cmd = ["sam", "local", "invoke", "-t", temp_sam_path]
             if event_file:
                 cmd.extend(["-e", event_file])
             cmd.append(logical_id)
-            
+
             console.print(f"[yellow]Running: {' '.join(cmd)}[/]")
-            
+
             try:
-                result = subprocess.run(
-                    cmd,
-                    check=True,
-                    text=True,
-                    capture_output=True
-                )
+                result = subprocess.run(cmd, check=True, text=True, capture_output=True)
                 console.print("[bold green]Lambda invocation successful:[/]")
                 console.print(result.stdout)
             except subprocess.CalledProcessError as e:
@@ -164,16 +165,16 @@ Resources:
                     os.unlink(temp_event_file)
                 except Exception:
                     pass
-            
+
             try:
                 os.unlink(temp_sam_path)
             except Exception:
                 pass
-    
+
     @property
     def python_version(self) -> str:
         """Get the Python version to use for the Lambda runtime.
-        
+
         Returns:
             Python version string (e.g., "3.13")
         """

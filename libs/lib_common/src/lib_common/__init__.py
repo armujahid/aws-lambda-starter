@@ -11,7 +11,7 @@ logger.setLevel(logging.INFO)
 
 def setup_logger(log_level: str = "INFO") -> None:
     """Set up the logger with the specified log level.
-    
+
     Args:
         log_level: The log level to use (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
@@ -23,11 +23,11 @@ def setup_logger(log_level: str = "INFO") -> None:
 
 def format_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     """Format a response for API Gateway.
-    
+
     Args:
         status_code: HTTP status code
         body: Response body
-        
+
     Returns:
         Formatted API Gateway response
     """
@@ -44,10 +44,10 @@ def format_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
 
 def parse_event(event: Dict[str, Any]) -> Dict[str, Any]:
     """Parse an AWS Lambda event.
-    
+
     Args:
         event: AWS Lambda event
-        
+
     Returns:
         Parsed event data
     """
@@ -58,7 +58,7 @@ def parse_event(event: Dict[str, Any]) -> Dict[str, Any]:
         except json.JSONDecodeError:
             logger.error("Failed to parse event body as JSON")
             body = {}
-    
+
     return {
         "body": body,
         "path_parameters": event.get("pathParameters", {}),

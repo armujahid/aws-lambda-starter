@@ -26,7 +26,7 @@ def test_parse_event():
         "body": json.dumps({"name": "test"}),
         "pathParameters": {"id": "123"},
         "queryStringParameters": {"filter": "all"},
-        "headers": {"Content-Type": "application/json"}
+        "headers": {"Content-Type": "application/json"},
     }
     result = parse_event(event)
     assert result["body"] == {"name": "test"}
@@ -35,20 +35,17 @@ def test_parse_event():
     assert result["headers"] == {"Content-Type": "application/json"}
 
     # Test with dict body
-    event = {
-        "body": {"name": "test"},
-        "pathParameters": {"id": "123"}
-    }
+    event = {"body": {"name": "test"}, "pathParameters": {"id": "123"}}
     result = parse_event(event)
     assert result["body"] == {"name": "test"}
-    
+
     # Test with invalid JSON body
     event = {
         "body": "{invalid json}",
     }
     result = parse_event(event)
     assert result["body"] == {}
-    
+
     # Test with empty event
     event = {}
     result = parse_event(event)
@@ -63,7 +60,7 @@ def test_setup_logger():
     # Valid log level
     setup_logger("DEBUG")
     setup_logger("INFO")
-    
+
     # Invalid log level
     with pytest.raises(ValueError):
         setup_logger("INVALID")
