@@ -28,9 +28,8 @@ aws-lambda-starter/
 
 ## Requirements
 
+- [`uv` package and project manager](https://docs.astral.sh/uv/)
 - Python 3.13 or higher
-- `uv` package manager
-- AWS SAM CLI (for local Lambda invocation)
 
 ## Setup
 
