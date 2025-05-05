@@ -247,11 +247,17 @@ class LayerBuilder:
             source_dir: Source directory
             output_dir: Output directory
         """
+        # Ensure we have a python directory in the output directory
+        # This is required for AWS Lambda layers
+        python_output_dir = output_dir / "python"
+        python_output_dir.mkdir(exist_ok=True)
+        
+        # Copy the contents of the source directory to the python directory in the output
         for item in source_dir.glob("*"):
             if item.is_dir():
-                shutil.copytree(item, output_dir / item.name, dirs_exist_ok=True)
+                shutil.copytree(item, python_output_dir / item.name, dirs_exist_ok=True)
             else:
-                shutil.copy(item, output_dir / item.name)
+                shutil.copy(item, python_output_dir / item.name)
     
     def _create_layer_zip(self, layer_dir: Path, zip_name: str) -> Path:
         """Create a zip file of the layer.
