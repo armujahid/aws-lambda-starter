@@ -90,6 +90,16 @@ Run tests for a specific library:
 python main.py test lib_common
 ```
 
+Run tests with verbose output:
+```bash
+python main.py test --verbose
+```
+
+Run tests with coverage reporting:
+```bash
+python main.py test --coverage
+```
+
 ### Local Lambda Invocation
 
 Invoke a Lambda function locally using AWS SAM CLI:

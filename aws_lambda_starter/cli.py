@@ -75,25 +75,106 @@ def build_layer(
 @app.command()
 def test(
     lib_name: Optional[str] = typer.Argument(None, help="Name of the library to test. If not specified, all libraries will be tested."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output for tests"),
+    coverage: bool = typer.Option(False, "--coverage", "-c", help="Generate coverage report"),
 ) -> None:
     """Run tests for shared libraries."""
+    pytest_args = []
+    
+    # Add verbose flag if requested
+    if verbose:
+        pytest_args.append("-v")
+    
+    # Add coverage if requested
+    if coverage:
+        pytest_args.extend(["--cov", "--cov-report", "term"])
+    
     if lib_name:
+        # Test a specific library
         console.print(f"[bold green]Running tests for library:[/] {lib_name}")
         lib_path = LIBS_DIR / lib_name
         if not lib_path.exists():
             console.print(f"[bold red]Error:[/] Library '{lib_name}' not found.")
             sys.exit(1)
         
-        # For demonstration, just print the command
-        console.print(f"[yellow]Would run: cd {lib_path} && pytest tests/[/]")
+        # Run pytest for the specific library
+        tests_path = lib_path / "tests"
+        src_path = lib_path / "src"
+        
+        if not tests_path.exists():
+            console.print(f"[bold yellow]Warning:[/] No tests directory found for '{lib_name}'.")
+            sys.exit(0)
+        
+        # Run the tests
+        result = _run_pytest(lib_path, tests_path, src_path, pytest_args)
+        if result != 0:
+            sys.exit(result)
     else:
+        # Test all libraries
         console.print("[bold green]Running tests for all libraries[/]")
         
-        # For demonstration, just print what would happen
+        all_passed = True
         for lib in os.listdir(LIBS_DIR):
             lib_path = LIBS_DIR / lib
-            if lib_path.is_dir():
-                console.print(f"[yellow]Would run: cd {lib_path} && pytest tests/[/]")
+            if not lib_path.is_dir():
+                continue
+                
+            tests_path = lib_path / "tests"
+            src_path = lib_path / "src"
+            
+            if not tests_path.exists():
+                console.print(f"[bold yellow]Warning:[/] No tests directory found for '{lib}'.")
+                continue
+            
+            console.print(f"[bold blue]Testing:[/] {lib}")
+            result = _run_pytest(lib_path, tests_path, src_path, pytest_args)
+            if result != 0:
+                all_passed = False
+        
+        if not all_passed:
+            console.print("[bold red]Some tests failed.[/]")
+            sys.exit(1)
+        else:
+            console.print("[bold green]All tests passed![/]")
+
+
+def _run_pytest(lib_path: Path, tests_path: Path, src_path: Path, pytest_args: List[str]) -> int:
+    """Run pytest for a library.
+    
+    Args:
+        lib_path: Path to the library
+        tests_path: Path to the tests directory
+        src_path: Path to the source directory
+        pytest_args: Additional pytest arguments
+        
+    Returns:
+        Return code from pytest (0 for success)
+    """
+    # Prepare the environment with the library in the Python path
+    env = os.environ.copy()
+    
+    # Add the source directory to PYTHONPATH so tests can import the library
+    if "PYTHONPATH" in env:
+        env["PYTHONPATH"] = f"{src_path.parent}:{env['PYTHONPATH']}"
+    else:
+        env["PYTHONPATH"] = str(src_path.parent)
+    
+    # Build the command
+    cmd = ["pytest"] + pytest_args + [str(tests_path)]
+    
+    try:
+        # Run pytest
+        result = subprocess.run(
+            cmd,
+            check=False,  # Don't raise an exception on test failure
+            cwd=str(lib_path),
+            env=env,
+            text=True
+        )
+        return result.returncode
+    except Exception as e:
+        console.print(f"[bold red]Error running tests:[/] {str(e)}")
+        return 1
 
 
 @app.command()
