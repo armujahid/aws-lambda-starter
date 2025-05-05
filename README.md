@@ -28,8 +28,10 @@ aws-lambda-starter/
 
 ## Requirements
 
+## Requirements
+
 - [`uv` package and project manager](https://docs.astral.sh/uv/)
-- Python 3.13 or higher
+- Python 3.13 (automatically installed by `uv`)
 
 ## Setup
 
