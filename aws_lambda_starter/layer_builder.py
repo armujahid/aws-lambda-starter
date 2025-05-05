@@ -222,19 +222,45 @@ class LayerBuilder:
             if not lib_path.is_dir() or not pyproject_path.exists():
                 continue
                 
-            # In a real implementation, this would use a TOML parser
-            # For demonstration, do a simple parse
+            # Parse the pyproject.toml file to get dependencies
             try:
                 with open(pyproject_path, "r") as f:
                     content = f.read()
                 
-                if "[project.dependencies]" in content:
+                # Try to find dependencies in the new format: dependencies = [...]
+                if "dependencies = [" in content:
+                    deps_section = content.split("dependencies = [")[1].split("]")[0]
+                    # Parse the dependencies list
+                    for line in deps_section.strip().split("\n"):
+                        line = line.strip().strip(',')
+                        if not line:
+                            continue
+                            
+                        # Remove quotes and extract the package name
+                        if '"' in line or "'" in line:
+                            # Extract package name from quoted string (e.g., "pydantic>=2.6.1")
+                            dep_line = line.strip('"\'')
+                            if '>=' in dep_line:
+                                dep_name = dep_line.split('>=')[0].strip()
+                            elif '=' in dep_line:
+                                dep_name = dep_line.split('=')[0].strip()
+                            else:
+                                dep_name = dep_line.strip()
+                                
+                            # Skip local libs
+                            if dep_name and not dep_name.startswith("lib_"):
+                                dependencies.append(dep_name)
+                        
+                # Also try the old format for backward compatibility
+                elif "[project.dependencies]" in content:
                     deps_section = content.split("[project.dependencies]")[1].split("[")[0]
                     for line in deps_section.strip().split("\n"):
                         if "=" in line:
                             dep_name = line.split("=")[0].strip()
                             if dep_name and not dep_name.startswith("lib_"):  # Skip local libs
                                 dependencies.append(dep_name)
+                                
+                console.print(f"Found dependencies in {lib_name}: {dependencies}")
             except Exception as e:
                 console.print(f"[bold red]Error parsing dependencies for {lib_name}:[/] {str(e)}")
         
