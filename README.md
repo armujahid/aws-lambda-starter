@@ -40,9 +40,35 @@ aws-lambda-starter/
    cd aws-lambda-starter
    ```
 
-2. Install all dependencies (including development dependencies):
-   ```
+## Running CLI Commands
+
+There are two ways to run commands in this project:
+
+### 1. Using `uv run` (Recommended)
+
+This project recommends using `uv run` to execute CLI commands. This approach automatically handles virtual environment management and dependency installation for you without any additional setup:
+
+```bash
+uv run main.py <command>
+```
+
+### 2. Using Python directly
+
+If you prefer to use Python directly, you need to:
+
+1. Install all dependencies first:
+   ```bash
    uv sync
+   ```
+
+2. Activate your virtual environment:
+   ```bash
+   source .venv/bin/activate
+   ```
+
+3. Then run the commands directly:
+   ```bash
+   python main.py <command>
    ```
 
 ## Usage
@@ -50,66 +76,66 @@ aws-lambda-starter/
 ### List Available Lambda Functions
 
 ```bash
-python main.py list-lambdas
+uv run main.py list-lambdas
 ```
 
 ### List Available Shared Libraries
 
 ```bash
-python main.py list-libs
+uv run main.py list-libs
 ```
 
 ### Build Lambda Layers
 
 Build a combined layer with dependencies and shared libraries:
 ```bash
-python main.py build-layer
+uv run main.py build-layer
 ```
 
 Or build separate layers:
 ```bash
-python main.py build-layer --no-combined --include-libs
-python main.py build-layer --no-combined --include-deps
+uv run main.py build-layer --no-combined --include-libs
+uv run main.py build-layer --no-combined --include-deps
 ```
 
 ### Build a Lambda Function
 
 ```bash
-python main.py build-lambda hello_world
+uv run main.py build-lambda hello_world
 ```
 
 ### Run Tests
 
 Run all tests:
 ```bash
-python main.py test
+uv run main.py test
 ```
 
 Run tests for a specific library:
 ```bash
-python main.py test lib_common
+uv run main.py test lib_common
 ```
 
 Run tests with verbose output:
 ```bash
-python main.py test --verbose
+uv run main.py test --verbose
 ```
 
 Run tests with coverage reporting:
 ```bash
-python main.py test --coverage
+uv run main.py test --coverage
 ```
 
 ### Local Lambda Invocation
 
 Invoke a Lambda function locally using AWS SAM CLI:
 ```bash
-python main.py invoke-local hello_world
+uv run main.py invoke-local hello_world
 ```
 
 With a custom event file:
 ```bash
-python main.py invoke-local hello_world --event-file path/to/event.json
+uv run main.py invoke-local hello_world --event-file path/to/event.json
 ```
 
 ## Adding a New Lambda Function
