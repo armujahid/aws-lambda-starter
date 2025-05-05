@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./libs/lib_common/src",
+        "./libs/lib_utils/src"
+    ]
+}
