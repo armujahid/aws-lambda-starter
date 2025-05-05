@@ -36,7 +36,7 @@ aws-lambda-starter/
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/aws-lambda-starter.git
+   git clone https://github.com/armujahid/aws-lambda-starter.git
    cd aws-lambda-starter
    ```
 
@@ -59,12 +59,6 @@ python main.py list-lambdas
 python main.py list-libs
 ```
 
-### Build a Lambda Function
-
-```bash
-python main.py build-lambda hello_world
-```
-
 ### Build Lambda Layers
 
 Build a combined layer with dependencies and shared libraries:
@@ -76,6 +70,12 @@ Or build separate layers:
 ```bash
 python main.py build-layer --no-combined --include-libs
 python main.py build-layer --no-combined --include-deps
+```
+
+### Build a Lambda Function
+
+```bash
+python main.py build-lambda hello_world
 ```
 
 ### Run Tests
