@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM template for AWS Lambda Starter project
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment to deploy to
+
+Resources:
+  # Shared Libraries Layer
+  SharedLibsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "shared-libs-layer-${Environment}"
+      Description: Layer containing shared libraries and dependencies
+      ContentUri: ./dist/layers/combined
+      CompatibleRuntimes:
+        - python3.13
+      RetentionPolicy: Retain
+
+  # Lambda Functions
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "hello-world-${Environment}"
+      CodeUri: ./lambdas/hello_world/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Layers:
+        - !Ref SharedLibsLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+
+  DataProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "data-processor-${Environment}"
+      CodeUri: ./lambdas/data_processor/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      MemorySize: 512
+      Timeout: 60
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+      Layers:
+        - !Ref SharedLibsLayer
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /process
+            Method: post
+
+Outputs:
+  # Layer Output
+  SharedLibsLayerArn:
+    Description: ARN of the shared libraries layer
+    Value: !Ref SharedLibsLayer
+
+  # API Gateway Outputs
+  HelloWorldApi:
+    Description: API Gateway endpoint URL for hello world function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/hello"
+  
+  DataProcessorApi:
+    Description: API Gateway endpoint URL for data processor function
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/process"
+
+  # Lambda Function Outputs
+  HelloWorldFunction:
+    Description: Hello World Lambda Function ARN
+    Value: !GetAtt HelloWorldFunction.Arn
+
+  DataProcessorFunction:
+    Description: Data Processor Lambda Function ARN
+    Value: !GetAtt DataProcessorFunction.Arn
