@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "lib_common"
 version = "0.1.0"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Abdul Rauf", email = "abdulraufmujahid@gmail.com"},
 ]
 description = "Common utilities for AWS Lambda functions"
 requires-python = ">=3.12"
