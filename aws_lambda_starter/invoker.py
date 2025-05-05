@@ -79,11 +79,14 @@ class LambdaInvoker:
         try:
             # Generate a SAM template for local invocation
             with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as temp_sam:
+                # Create a SAM-compatible logical ID (alphanumeric only)
+                logical_id = f"{lambda_name.replace('_', '')}Function"
+                
                 sam_template = f"""
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
-  {lambda_name}Function:
+  {logical_id}:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: {lambda_path}
@@ -99,7 +102,7 @@ Resources:
             cmd = ["sam", "local", "invoke", "-t", temp_sam_path]
             if event_file:
                 cmd.extend(["-e", event_file])
-            cmd.append(f"{lambda_name}Function")
+            cmd.append(logical_id)
             
             console.print(f"[yellow]Running: {' '.join(cmd)}[/]")
             
