@@ -153,11 +153,29 @@ def _run_pytest(lib_path: Path, tests_path: Path, src_path: Path, pytest_args: L
     # Prepare the environment with the library in the Python path
     env = os.environ.copy()
     
-    # Add the source directory to PYTHONPATH so tests can import the library
+    # Add ALL library src directories to PYTHONPATH
+    # This ensures interdependencies between libraries work
+    python_path_entries = []
+    
+    # First add the current library's src dir
+    python_path_entries.append(str(src_path))
+    
+    # Then add all other libraries' src dirs
+    for lib_name in os.listdir(LIBS_DIR):
+        other_lib_path = LIBS_DIR / lib_name
+        if other_lib_path.is_dir() and other_lib_path != lib_path:
+            other_src_path = other_lib_path / "src"
+            if other_src_path.exists():
+                python_path_entries.append(str(other_src_path))
+    
+    # Set the PYTHONPATH
+    python_path = ":".join(python_path_entries)
     if "PYTHONPATH" in env:
-        env["PYTHONPATH"] = f"{src_path.parent}:{env['PYTHONPATH']}"
+        env["PYTHONPATH"] = f"{python_path}:{env['PYTHONPATH']}"
     else:
-        env["PYTHONPATH"] = str(src_path.parent)
+        env["PYTHONPATH"] = python_path
+    
+    console.print(f"[dim]Setting PYTHONPATH to: {env['PYTHONPATH']}[/dim]")
     
     # Build the command
     cmd = ["pytest"] + pytest_args + [str(tests_path)]
