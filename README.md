@@ -15,7 +15,7 @@ A starter project for developing and deploying AWS Lambda functions with shared 
 
 ```
 aws-lambda-starter/
-├── aws_lambda_starter/     # CLI and utilities
+├── cli/                   # CLI and utilities
 ├── lambdas/                # Lambda functions
 │   ├── hello_world/        # Hello World Lambda
 │   └── data_processor/     # Data Processor Lambda

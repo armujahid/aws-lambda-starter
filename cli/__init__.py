@@ -3,8 +3,8 @@
 from pathlib import Path
 
 # Import main classes for easy access
-from aws_lambda_starter.builder import LambdaBuilder
-from aws_lambda_starter.invoker import LambdaInvoker
+from cli.builder import LambdaBuilder
+from cli.invoker import LambdaInvoker
 
 # Set package version
 __version__ = "0.1.0"

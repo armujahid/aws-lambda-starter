@@ -10,9 +10,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from aws_lambda_starter.builder import LambdaBuilder
-from aws_lambda_starter.invoker import LambdaInvoker
-from aws_lambda_starter.layer_builder import LayerBuilder
+from cli.builder import LambdaBuilder
+from cli.invoker import LambdaInvoker
+from cli.layer_builder import LayerBuilder
 
 app = typer.Typer(help="AWS Lambda Starter CLI")
 console = Console()
