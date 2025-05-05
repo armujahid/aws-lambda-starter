@@ -90,31 +90,46 @@ class LayerBuilder:
             console.print("[yellow]No dependencies found to install[/]")
             return
         
-        # Create a requirements.txt file
-        requirements_file = self.base_dir / "layer-requirements.txt"
-        with open(requirements_file, "w") as f:
-            for dep in dependencies:
-                f.write(f"{dep}\n")
-        
+        # Create a temporary pyproject.toml file for uv sync
+        temp_pyproject_file = self.base_dir / "temp-layer-pyproject.toml"
         try:
-            # Use uv to install dependencies
-            console.print(f"Installing dependencies from {requirements_file} to {target_dir}")
+            with open(temp_pyproject_file, "w") as f:
+                f.write("""[project]
+name = "lambda-layer-deps"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+""")
+                # Add the dependencies
+                for dep in dependencies:
+                    f.write(f'    "{dep}",\n')
+                
+                f.write("]\n")
+                f.write("""
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+""")
             
-            # In a real implementation, this would execute:
-            # subprocess.run(
-            #     ["uv", "pip", "install", "--target", str(target_dir), "-r", str(requirements_file)],
-            #     check=True
-            # )
+            # Use uv sync to install dependencies
+            console.print(f"Installing dependencies to {target_dir}")
             
-            # For demonstration purposes
-            console.print("[yellow]Would run: uv pip install --target {target_dir} -r {requirements_file}[/]")
-            console.print("[yellow]Dependencies that would be installed:[/]")
-            for dep in dependencies:
-                console.print(f"  - {dep}")
+            # Actually run uv sync to install dependencies
+            try:
+                subprocess.run(
+                    ["uv", "sync", "--target-dir", str(target_dir), "-p", str(temp_pyproject_file)],
+                    check=True, 
+                    capture_output=True,
+                    text=True
+                )
+                console.print("[green]Successfully installed dependencies[/]")
+            except subprocess.CalledProcessError as e:
+                console.print(f"[bold red]Error installing dependencies:[/] {e.stderr}")
+                raise
         finally:
-            # Clean up requirements file
-            if requirements_file.exists():
-                requirements_file.unlink()
+            # Clean up temporary file
+            if temp_pyproject_file.exists():
+                temp_pyproject_file.unlink()
     
     def _install_shared_libs(self, target_dir: Path) -> None:
         """Install shared libraries from the libs directory.
@@ -131,18 +146,80 @@ class LayerBuilder:
                 
             console.print(f"Building and installing {lib_name}")
             
-            # In a real implementation, this would:
-            # 1. Build a wheel for the library
-            # 2. Install the wheel to the target directory
-            
-            # For demonstration purposes, copy the source code
-            src_path = lib_path / "src"
-            if src_path.exists():
-                for package in src_path.glob("*"):
-                    if package.is_dir() and not package.name.startswith("__"):
-                        dest_path = target_dir / package.name
-                        shutil.copytree(package, dest_path, dirs_exist_ok=True)
-                        console.print(f"  - Installed {package.name}")
+            # Build the library using setuptools
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                
+                try:
+                    # Build a wheel distribution
+                    build_cmd = [
+                        "python", "-m", "build", 
+                        "--wheel", 
+                        "--outdir", str(temp_path),
+                        str(lib_path)
+                    ]
+                    
+                    result = subprocess.run(
+                        build_cmd,
+                        check=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    # Find the wheel file
+                    wheel_files = list(temp_path.glob("*.whl"))
+                    if not wheel_files:
+                        console.print(f"[bold yellow]Warning: No wheel built for {lib_name}, falling back to source copy[/]")
+                        # Fall back to copying source
+                        self._copy_lib_source(lib_path, target_dir)
+                        continue
+                    
+                    wheel_file = wheel_files[0]
+                    console.print(f"  - Built wheel: {wheel_file.name}")
+                    
+                    # Install the wheel
+                    install_cmd = [
+                        "pip", "install", 
+                        "--target", str(target_dir),
+                        "--no-deps",  # Don't install dependencies as we handle them separately
+                        str(wheel_file)
+                    ]
+                    
+                    result = subprocess.run(
+                        install_cmd,
+                        check=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    
+                    console.print(f"  - Installed {lib_name} to layer")
+                    
+                except subprocess.CalledProcessError as e:
+                    console.print(f"[bold red]Error building/installing {lib_name}:[/] {e.stderr}")
+                    console.print(f"[yellow]Falling back to source copy for {lib_name}[/]")
+                    # Fall back to copying source
+                    self._copy_lib_source(lib_path, target_dir)
+                    
+                except Exception as e:
+                    console.print(f"[bold red]Unexpected error processing {lib_name}:[/] {str(e)}")
+                    console.print(f"[yellow]Falling back to source copy for {lib_name}[/]")
+                    # Fall back to copying source
+                    self._copy_lib_source(lib_path, target_dir)
+    
+    def _copy_lib_source(self, lib_path: Path, target_dir: Path) -> None:
+        """Copy library source code to the target directory.
+        
+        Args:
+            lib_path: Path to the library
+            target_dir: Directory to copy the source code to
+        """
+        src_path = lib_path / "src"
+        if src_path.exists():
+            for package in src_path.glob("*"):
+                if package.is_dir() and not package.name.startswith("__"):
+                    dest_path = target_dir / package.name
+                    shutil.copytree(package, dest_path, dirs_exist_ok=True)
+                    console.print(f"  - Copied source for {package.name}")
     
     def _collect_dependencies(self) -> List[str]:
         """Collect all dependencies from shared libraries.

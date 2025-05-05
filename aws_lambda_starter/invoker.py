@@ -59,17 +59,25 @@ class LambdaInvoker:
         
         if not event_file:
             if not event_data:
-                event_data = {"body": "{}"}
+                # Check for a default event.json in the lambda directory
+                default_event_path = lambda_path / "event.json"
+                if default_event_path.exists():
+                    event_file = str(default_event_path)
+                    console.print(f"[yellow]Using default event file: {event_file}[/]")
+                else:
+                    # Create a basic event
+                    event_data = {"body": "{}"}
             
-            # Create a temporary event file
-            fd, temp_event_file = tempfile.mkstemp(suffix=".json")
-            with os.fdopen(fd, "w") as f:
-                json.dump(event_data, f)
-            event_file = temp_event_file
-            console.print(f"[yellow]Created temporary event file: {event_file}[/]")
+            if event_data:
+                # Create a temporary event file
+                fd, temp_event_file = tempfile.mkstemp(suffix=".json")
+                with os.fdopen(fd, "w") as f:
+                    json.dump(event_data, f)
+                event_file = temp_event_file
+                console.print(f"[yellow]Created temporary event file: {event_file}[/]")
         
         try:
-            # Generate a simple SAM template for local invocation
+            # Generate a SAM template for local invocation
             with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as temp_sam:
                 sam_template = f"""
 AWSTemplateFormatVersion: '2010-09-09'
@@ -80,20 +88,54 @@ Resources:
     Properties:
       CodeUri: {lambda_path}
       Handler: app.handler
-      Runtime: python3.10
+      Runtime: python{self.python_version}
       Architectures:
         - x86_64
 """
                 temp_sam.write(sam_template.encode())
-                temp_sam.flush()
-                
-                # In a real implementation, this would invoke SAM CLI
-                console.print(f"[yellow]Would run: sam local invoke -t {temp_sam.name} -e {event_file} {lambda_name}Function[/]")
-                console.print(f"[yellow]Note: In a real implementation, this would use AWS SAM CLI to invoke the Lambda function.[/]")
+                temp_sam_path = temp_sam.name
+            
+            # Actually invoke SAM CLI
+            cmd = ["sam", "local", "invoke", "-t", temp_sam_path]
+            if event_file:
+                cmd.extend(["-e", event_file])
+            cmd.append(f"{lambda_name}Function")
+            
+            console.print(f"[yellow]Running: {' '.join(cmd)}[/]")
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    check=True,
+                    text=True,
+                    capture_output=True
+                )
+                console.print("[bold green]Lambda invocation successful:[/]")
+                console.print(result.stdout)
+            except subprocess.CalledProcessError as e:
+                console.print(f"[bold red]Error invoking Lambda:[/]")
+                console.print(e.stderr)
+                if e.stdout:
+                    console.print("Output:")
+                    console.print(e.stdout)
         finally:
-            # Clean up temporary event file
+            # Clean up temporary files
             if temp_event_file:
                 try:
                     os.unlink(temp_event_file)
                 except Exception:
                     pass
+            
+            try:
+                os.unlink(temp_sam_path)
+            except Exception:
+                pass
+    
+    @property
+    def python_version(self) -> str:
+        """Get the Python version to use for the Lambda runtime.
+        
+        Returns:
+            Python version string (e.g., "3.13")
+        """
+        return "3.13"  # Using Python 3.13 which is now supported by AWS Lambda

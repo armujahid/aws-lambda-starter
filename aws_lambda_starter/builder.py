@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -62,7 +63,13 @@ class LambdaBuilder:
         for file in lambda_path.glob("*.py"):
             shutil.copy(file, output_path / file.name)
         
-        console.print(f"[bold green]Lambda function built successfully:[/] {lambda_name}")
+        # Create a zip file for deployment
+        zip_path = output_path / f"{lambda_name}.zip"
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file in output_path.glob("*.py"):
+                zipf.write(file, file.name)
+        
+        console.print(f"[bold green]Lambda function zip created:[/] {zip_path}")
         return output_path
     
     def build_combined_layer(self) -> Path:
@@ -119,17 +126,35 @@ class LambdaBuilder:
             python_dir = temp_path / "python"
             python_dir.mkdir()
             
-            # Install shared libraries
-            self._install_shared_libs(python_dir)
+            # Copy shared libraries
+            for lib_name in os.listdir(self.libs_dir):
+                lib_path = self.libs_dir / lib_name
+                src_path = lib_path / "src"
+                if lib_path.is_dir() and src_path.exists():
+                    for package in src_path.glob("*"):
+                        if package.is_dir() and not package.name.startswith("__"):
+                            dest_path = python_dir / package.name
+                            shutil.copytree(package, dest_path, dirs_exist_ok=True)
+                            console.print(f"  - Copied {package.name} to layer")
             
-            # Copy to output directory
+            # Create a zip file for deployment
+            zip_path = output_path / "libs-layer.zip"
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add files maintaining the python/ directory structure
+                for root, _, files in os.walk(python_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, temp_path)
+                        zipf.write(file_path, arcname)
+            
+            # Copy files to output directory
             for item in python_dir.glob("*"):
                 if item.is_dir():
                     shutil.copytree(item, output_path / item.name, dirs_exist_ok=True)
                 else:
                     shutil.copy(item, output_path / item.name)
         
-        console.print(f"[bold green]Shared libraries layer built successfully[/]")
+        console.print(f"[bold green]Shared libraries layer zip created:[/] {zip_path}")
         return output_path
     
     def build_deps_layer(self) -> Path:
@@ -152,17 +177,44 @@ class LambdaBuilder:
             python_dir = temp_path / "python"
             python_dir.mkdir()
             
-            # Install dependencies
-            self._install_dependencies(python_dir)
+            # Create a requirements.txt file with all dependencies
+            requirements = self._collect_dependencies()
+            requirements_file = temp_path / "requirements.txt"
+            with open(requirements_file, "w") as f:
+                for dep in requirements:
+                    f.write(f"{dep}\n")
             
-            # Copy to output directory
+            # Install dependencies
+            try:
+                subprocess.run(
+                    ["pip", "install", "-r", str(requirements_file), "--target", str(python_dir)],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                console.print(f"[green]Successfully installed dependencies:[/] {', '.join(requirements)}")
+            except subprocess.CalledProcessError as e:
+                console.print(f"[bold red]Error installing dependencies:[/] {e.stderr}")
+                raise
+            
+            # Create a zip file for deployment
+            zip_path = output_path / "deps-layer.zip"
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add files maintaining the python/ directory structure
+                for root, _, files in os.walk(python_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, temp_path)
+                        zipf.write(file_path, arcname)
+            
+            # Copy files to output directory
             for item in python_dir.glob("*"):
                 if item.is_dir():
                     shutil.copytree(item, output_path / item.name, dirs_exist_ok=True)
                 else:
                     shutil.copy(item, output_path / item.name)
         
-        console.print(f"[bold green]Dependencies layer built successfully[/]")
+        console.print(f"[bold green]Dependencies layer zip created:[/] {zip_path}")
         return output_path
     
     def _install_shared_libs(self, target_dir: Path) -> None:
@@ -214,25 +266,23 @@ class LambdaBuilder:
         dependencies = set()
         
         # Collect dependencies from shared libraries
-        for lib in os.listdir(self.libs_dir):
-            lib_path = self.libs_dir / lib
+        for lib_name in os.listdir(self.libs_dir):
+            lib_path = self.libs_dir / lib_name
             pyproject_path = lib_path / "pyproject.toml"
             if lib_path.is_dir() and pyproject_path.exists():
                 # Parse pyproject.toml to get dependencies
                 try:
                     with open(pyproject_path, "r") as f:
-                        pyproject = f.read()
+                        content = f.read()
                     
-                    # This is a very simplified parsing, in reality you would use a TOML parser
-                    if "[project.dependencies]" in pyproject:
-                        # Extract dependencies section
-                        deps_section = pyproject.split("[project.dependencies]")[1].split("[")[0]
+                    if "[project.dependencies]" in content:
+                        deps_section = content.split("[project.dependencies]")[1].split("[")[0]
                         for line in deps_section.strip().split("\n"):
                             if "=" in line:
                                 dep_name = line.split("=")[0].strip()
                                 if dep_name and not dep_name.startswith("lib_"):  # Skip local libs
                                     dependencies.add(dep_name)
                 except Exception as e:
-                    console.print(f"[bold red]Error parsing dependencies for {lib}:[/] {str(e)}")
+                    console.print(f"[bold red]Error parsing dependencies for {lib_name}:[/] {str(e)}")
         
         return dependencies
