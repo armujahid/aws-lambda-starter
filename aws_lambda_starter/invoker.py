@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
+import shutil
 
 from rich.console import Console
 
@@ -76,16 +77,36 @@ class LambdaInvoker:
                 event_file = temp_event_file
                 console.print(f"[yellow]Created temporary event file: {event_file}[/]")
         
+        # Create a temporary directory for shared libraries layer
+        temp_layer_dir = None
+        
         try:
+            # Create a temporary layer with our shared libraries
+            temp_layer_dir = tempfile.mkdtemp(prefix="lambda-layer-")
+            layer_python_dir = Path(temp_layer_dir) / "python"
+            os.makedirs(layer_python_dir, exist_ok=True)
+            
+            # Copy the shared libraries to the layer
+            console.print("[yellow]Creating temporary layer with shared libraries[/]")
+            self._copy_libs_to_layer(layer_python_dir)
+            
             # Generate a SAM template for local invocation
             with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as temp_sam:
                 # Create a SAM-compatible logical ID (alphanumeric only)
                 logical_id = f"{lambda_name.replace('_', '')}Function"
+                layer_logical_id = "SharedLibsLayer"
                 
                 sam_template = f"""
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
+  {layer_logical_id}:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: {temp_layer_dir}
+      CompatibleRuntimes:
+        - python{self.python_version}
+
   {logical_id}:
     Type: AWS::Serverless::Function
     Properties:
@@ -94,6 +115,8 @@ Resources:
       Runtime: python{self.python_version}
       Architectures:
         - x86_64
+      Layers:
+        - !Ref {layer_logical_id}
 """
                 temp_sam.write(sam_template.encode())
                 temp_sam_path = temp_sam.name
@@ -133,6 +156,35 @@ Resources:
                 os.unlink(temp_sam_path)
             except Exception:
                 pass
+                
+            if temp_layer_dir:
+                try:
+                    shutil.rmtree(temp_layer_dir)
+                except Exception:
+                    pass
+    
+    def _copy_libs_to_layer(self, layer_python_dir: Path) -> None:
+        """Copy shared libraries to a temporary layer directory.
+        
+        Args:
+            layer_python_dir: Path to the python directory in the layer
+        """
+        libs_dir = self.base_dir / "libs"
+        for lib_name in os.listdir(libs_dir):
+            lib_path = libs_dir / lib_name
+            if not lib_path.is_dir():
+                continue
+                
+            src_path = lib_path / "src"
+            if not src_path.exists():
+                continue
+                
+            # Copy each library package to the layer
+            for package in src_path.glob("*"):
+                if package.is_dir() and not package.name.startswith("__"):
+                    dest_path = layer_python_dir / package.name
+                    shutil.copytree(package, dest_path, dirs_exist_ok=True)
+                    console.print(f"  - Added {package.name} to layer")
     
     @property
     def python_version(self) -> str:
