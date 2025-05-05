@@ -90,34 +90,20 @@ class LayerBuilder:
             console.print("[yellow]No dependencies found to install[/]")
             return
         
-        # Create a temporary pyproject.toml file for uv sync
-        temp_pyproject_file = self.base_dir / "temp-layer-pyproject.toml"
+        # Create a requirements.txt file for uv pip install
+        requirements_file = self.base_dir / "temp-layer-requirements.txt"
         try:
-            with open(temp_pyproject_file, "w") as f:
-                f.write("""[project]
-name = "lambda-layer-deps"
-version = "0.1.0"
-requires-python = ">=3.13"
-dependencies = [
-""")
-                # Add the dependencies
+            with open(requirements_file, "w") as f:
                 for dep in dependencies:
-                    f.write(f'    "{dep}",\n')
-                
-                f.write("]\n")
-                f.write("""
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-""")
+                    f.write(f"{dep}\n")
             
-            # Use uv sync to install dependencies
+            # Use uv pip install to install dependencies to the target directory
             console.print(f"Installing dependencies to {target_dir}")
             
-            # Actually run uv sync to install dependencies
+            # Run uv pip install with --target to specify the installation directory
             try:
                 subprocess.run(
-                    ["uv", "sync", "--target-dir", str(target_dir), "-p", str(temp_pyproject_file)],
+                    ["uv", "pip", "install", "--target", str(target_dir), "-r", str(requirements_file)],
                     check=True, 
                     capture_output=True,
                     text=True
@@ -128,8 +114,8 @@ build-backend = "hatchling.build"
                 raise
         finally:
             # Clean up temporary file
-            if temp_pyproject_file.exists():
-                temp_pyproject_file.unlink()
+            if requirements_file.exists():
+                requirements_file.unlink()
     
     def _install_shared_libs(self, target_dir: Path) -> None:
         """Install shared libraries from the libs directory.
