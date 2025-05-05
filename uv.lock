@@ -59,9 +59,12 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "aws-sam-cli" },
+    { name = "build" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pyyaml" },
     { name = "ruff" },
+    { name = "wheel" },
 ]
 
 [package.metadata]
@@ -74,9 +77,12 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "aws-sam-cli", specifier = ">=1.107.0" },
+    { name = "build", specifier = ">=1.0.3" },
     { name = "pytest", specifier = ">=7.3.1" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "ruff", specifier = ">=0.11.8" },
+    { name = "wheel", specifier = ">=0.42.0" },
 ]
 
 [[package]]
@@ -244,6 +250,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/40/ac/9a46bf6ade735a726d21e2f9917de41459d5640e56885dd086352fa52046/botocore_stubs-1.38.8.tar.gz", hash = "sha256:d7f3783b664029a7f9da140530b82193ccb2ad0f2a9e13748fb35a7803c3ffc0", size = 42310, upload-time = "2025-05-03T01:14:20.129Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/46/d7/cae712b1eb9c8e958b6a586ef3b17724b196ed30c95ac6fffb3ceb13463b/botocore_stubs-1.38.8-py3-none-any.whl", hash = "sha256:52bafa2a55b66d356969187e555e65b27b38456f724944fbe3549998539e4893", size = 65589, upload-time = "2025-05-03T01:14:17.587Z" },
+]
+
+[[package]]
+name = "build"
+version = "1.2.2.post1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "os_name == 'nt'" },
+    { name = "packaging" },
+    { name = "pyproject-hooks" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/46/aeab111f8e06793e4f0e421fcad593d547fb8313b50990f31681ee2fb1ad/build-1.2.2.post1.tar.gz", hash = "sha256:b36993e92ca9375a219c99e606a122ff365a760a2d4bba0caa09bd5278b608b7", size = 46701, upload-time = "2024-10-06T17:22:25.251Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/c2/80633736cd183ee4a62107413def345f7e6e3c01563dbca1417363cf957e/build-1.2.2.post1-py3-none-any.whl", hash = "sha256:1d61c0887fa860c01971625baae8bdd338e517b836a2f70dd1f7aa3a6b2fc5b5", size = 22950, upload-time = "2024-10-06T17:22:23.299Z" },
 ]
 
 [[package]]
@@ -862,6 +882,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c1/d4/1067b82c4fc674d6f6e9e8d26b3dff978da46d351ca3bac171544693e085/pyopenssl-24.3.0.tar.gz", hash = "sha256:49f7a019577d834746bc55c5fce6ecbcec0f2b4ec5ce1cf43a9a173b8138bb36", size = 178944, upload-time = "2024-11-27T20:43:12.755Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/42/22/40f9162e943f86f0fc927ebc648078be87def360d9d8db346619fb97df2b/pyOpenSSL-24.3.0-py3-none-any.whl", hash = "sha256:e474f5a473cd7f92221cc04976e48f4d11502804657a08a989fb3be5514c904a", size = 56111, upload-time = "2024-11-27T20:43:21.112Z" },
+]
+
+[[package]]
+name = "pyproject-hooks"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/82/28175b2414effca1cdac8dc99f76d660e7a4fb0ceefa4b4ab8f5f6742925/pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8", size = 19228, upload-time = "2024-09-29T09:24:13.293Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/24/12818598c362d7f300f18e74db45963dbcb85150324092410c8b49405e42/pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913", size = 10216, upload-time = "2024-09-29T09:24:11.978Z" },
 ]
 
 [[package]]

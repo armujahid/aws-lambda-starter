@@ -51,7 +51,7 @@ class LambdaInvoker:
         if not lambda_path.exists():
             raise ValueError(f"Lambda function '{lambda_name}' not found")
         
-        # Handle event file
+        # Use provided event_file or event_data, or create a default event
         temp_event_file = None
         if event_file:
             if not os.path.exists(event_file):
@@ -77,13 +77,14 @@ class LambdaInvoker:
                 event_file = temp_event_file
                 console.print(f"[yellow]Created temporary event file: {event_file}[/]")
         
-        # Check if we have an existing layer
+        # Check if we have an existing layer - EXIT if it doesn't exist
         layer_path = self.base_dir / "dist" / "layers" / "combined"
         if not layer_path.exists() or not any(os.listdir(layer_path)):
-            console.print("[bold yellow]Warning: Layer not found. You need to build the layer first.[/]")
+            console.print("[bold red]Error: Layer not found. You need to build the layer first.[/]")
             console.print("[yellow]Run the following command to build the layer:[/]")
             console.print("[yellow]  python main.py build-layer[/]")
-            console.print("[yellow]Continuing without layer, which may cause import errors...[/]")
+            console.print("[bold red]Exiting. Layer is required for Lambda invocation.[/]")
+            raise ValueError("Layer not found. Run 'python main.py build-layer' first.")
         
         try:
             # Generate a SAM template for local invocation
