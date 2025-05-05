@@ -9,6 +9,8 @@ from typing import Any, Dict, Optional
 
 from rich.console import Console
 
+from cli.layer_builder import LayerBuilder
+
 console = Console()
 
 
@@ -29,6 +31,7 @@ class LambdaInvoker:
         self.base_dir = base_dir
         self.build_dir = build_dir
         self.lambda_dir = base_dir / "lambdas"
+        self.layer_builder = LayerBuilder(base_dir)
 
     def invoke_lambda(
         self,
@@ -78,18 +81,20 @@ class LambdaInvoker:
                 event_file = temp_event_file
                 console.print(f"[yellow]Created temporary event file: {event_file}[/]")
 
-        # Check if we have an existing layer - EXIT if it doesn't exist
+        # Check if we have an existing layer - BUILD if it doesn't exist
         layer_path = self.base_dir / "dist" / "layers" / "combined"
         if not layer_path.exists() or not any(os.listdir(layer_path)):
             console.print(
-                "[bold red]Error: Layer not found. You need to build the layer first.[/]"
+                "[bold yellow]Warning: Layer not found. Building the layer automatically...[/]"
             )
-            console.print("[yellow]Run the following command to build the layer:[/]")
-            console.print("[yellow]  python main.py build-layer[/]")
-            console.print(
-                "[bold red]Exiting. Layer is required for Lambda invocation.[/]"
-            )
-            raise ValueError("Layer not found. Run 'python main.py build-layer' first.")
+            try:
+                # Build the layer using the LayerBuilder
+                self.layer_builder.build_combined_layer(create_zip=True)
+                console.print("[bold green]Layer built successfully! Continuing with Lambda invocation.[/]")
+            except Exception as e:
+                console.print(f"[bold red]Error building layer:[/] {str(e)}")
+                console.print("[bold red]Exiting. Layer is required for Lambda invocation.[/]")
+                raise ValueError(f"Failed to build layer automatically: {str(e)}")
 
         try:
             # Generate a SAM template for local invocation
