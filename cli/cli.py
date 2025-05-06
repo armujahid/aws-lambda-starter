@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 import typer
 from rich.console import Console
@@ -13,6 +13,7 @@ from rich.table import Table
 from cli.builder import LambdaBuilder
 from cli.invoker import LambdaInvoker
 from cli.layer_builder import LayerBuilder
+from cli.cdk_deployer import CDKDeployer
 
 app = typer.Typer(help="AWS Lambda Starter CLI")
 console = Console()
@@ -26,6 +27,7 @@ LIBS_DIR = BASE_DIR / "libs"
 lambda_builder = LambdaBuilder(BASE_DIR)
 layer_builder = LayerBuilder(BASE_DIR)
 lambda_invoker = LambdaInvoker(BASE_DIR)
+cdk_deployer = CDKDeployer(BASE_DIR)
 
 
 @app.command()
@@ -307,6 +309,66 @@ def list_libs() -> None:
         console.print(table)
     else:
         console.print("[yellow]No shared libraries found.[/]")
+
+
+@app.command()
+def deploy_cdk(
+    lambda_names: Optional[List[str]] = typer.Option(
+        None, "--lambda", "-l", help="Names of lambda functions to deploy (default: all)"
+    ),
+    region: Optional[str] = typer.Option(
+        None, "--region", "-r", help="AWS region to deploy to"
+    ),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", "-p", help="AWS profile to use"
+    ),
+    stack_name: str = typer.Option(
+        "LambdaStack", "--stack-name", "-s", help="Name of the CDK stack"
+    ),
+    build_layer: bool = typer.Option(
+        True, "--build-layer/--no-build-layer", help="Build the Lambda layer before deploying"
+    ),
+    env_vars: Optional[List[str]] = typer.Option(
+        None, "--env", "-e", help="Environment variables to set for all Lambda functions (format: KEY=VALUE)"
+    ),
+) -> None:
+    """Deploy Lambda functions using AWS CDK."""
+    try:
+        # Convert env_vars to a dictionary
+        env_dict = {}
+        if env_vars:
+            for env_var in env_vars:
+                if "=" not in env_var:
+                    console.print(f"[bold red]Error:[/] Invalid environment variable format: {env_var}")
+                    console.print("Format should be KEY=VALUE")
+                    sys.exit(1)
+                key, value = env_var.split("=", 1)
+                env_dict[key] = value
+
+        # Build the layer if requested
+        if build_layer:
+            console.print("[bold]Building Lambda layer before deployment...[/]")
+            layer_builder.build_combined_layer(create_zip=True)
+
+        # Deploy the Lambda functions
+        console.print("[bold]Deploying Lambda functions with CDK...[/]")
+        
+        # Set the stack name in the environment for the CDK app
+        os.environ["CDK_STACK_NAME"] = stack_name
+        
+        # Deploy the stack
+        cdk_deployer.deploy(
+            lambda_names=lambda_names,
+            region=region,
+            profile=profile,
+            parameters=env_dict,
+        )
+        
+        console.print("[bold green]Deployment completed successfully![/]")
+    except Exception as e:
+        console.print(f"[bold red]Error during CDK deployment:[/]")
+        console.print(f"[red]{str(e)}[/]")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
