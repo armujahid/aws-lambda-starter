@@ -221,6 +221,12 @@ The CDK deployment automatically:
 - Configures environment variables
 - Deploys the stack to your AWS account
 
+To delete the CDK stack:
+```bash
+# Delete the CDK stack
+uv run cdk destroy --app "python cdk/app.py"
+```
+
 ### 2. Using AWS SAM
 
 You can also use AWS SAM for deploying the project:
@@ -234,6 +240,12 @@ sam deploy
 ```
 
 SAM deployment uses the `template.yaml` file in the project root to define the infrastructure.
+
+To delete the SAM stack:
+```bash
+# Delete the SAM stack
+sam delete
+```
 
 ## License
 
