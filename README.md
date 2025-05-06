@@ -10,6 +10,7 @@ A starter project for developing and deploying AWS Lambda functions with shared 
 - CLI commands for building, testing, and local invocation
 - Integration with `uv` for Python dependency management
 - AWS SAM CLI integration for local testing
+- AWS CDK and SAM CLI support for infrastructure as code deployment
 
 ## Project Structure
 
@@ -187,13 +188,52 @@ uv run main.py invoke-local hello_world --event-file path/to/event.json
 
 ## Deploying to AWS
 
-This project focuses on local development and artifact generation. For deployment to AWS, you can:
+This project provides two methods for deploying your Lambda functions to AWS:
 
-1. Use the built artifacts with AWS CDK
-2. Use AWS SAM for deployment
-3. Use Terraform or other IaC tools
+### 1. Using AWS CDK (Infrastructure as Code)
 
-The generated artifacts in the `dist` directory are ready to be deployed as Lambda functions and layers.
+The project includes a dynamic CDK stack generator that automatically discovers all Lambda functions and deploys them with the shared layer.
+
+```bash
+# Deploy all Lambda functions with the default stack name (LambdaStack)
+uv run main.py deploy-cdk
+
+# Deploy specific Lambda functions
+uv run main.py deploy-cdk --lambda hello_world --lambda data_processor
+
+# Deploy with AWS profile and region
+uv run main.py deploy-cdk --profile myprofile --region us-west-2
+
+# Deploy with custom environment variables for Lambda functions
+uv run main.py deploy-cdk --env API_URL=https://example.com --env LOG_LEVEL=DEBUG
+
+# Deploy with a custom stack name
+uv run main.py deploy-cdk --stack-name MyCustomStack
+
+# Deploy without rebuilding the Lambda layer
+uv run main.py deploy-cdk --no-build-layer
+```
+
+The CDK deployment automatically:
+- Builds all Lambda functions
+- Creates a shared layer with dependencies and shared libraries
+- Sets up IAM roles and permissions
+- Configures environment variables
+- Deploys the stack to your AWS account
+
+### 2. Using AWS SAM
+
+You can also use AWS SAM for deploying the project:
+
+```bash
+# Deploy with interactive prompts for parameters
+sam deploy --guided
+
+# Deploy using previously saved parameters
+sam deploy
+```
+
+SAM deployment uses the `template.yaml` file in the project root to define the infrastructure.
 
 ## License
 
