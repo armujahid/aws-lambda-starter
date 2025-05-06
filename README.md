@@ -25,6 +25,8 @@ aws-lambda-starter/
 │   └── lib_utils/          # Utility functions
 ├── main.py                 # CLI entry point
 └── pyproject.toml          # Project configuration
+└── cdk/                    # (Optional) Generated CDK stack. don't manually edit anything here.
+└── template.yaml           # (Optional) template for deployment via AWS SAM
 ```
 
 ## Requirements
@@ -74,6 +76,12 @@ If you prefer to use Python directly, you need to:
    ```
 
 ## Usage
+
+### List Available Commands
+
+```bash
+uv run main.py --help
+```
 
 ### List Available Lambda Functions
 
