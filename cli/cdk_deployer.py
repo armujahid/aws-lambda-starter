@@ -63,7 +63,7 @@ class CDKDeployer:
 
         # Run CDK deploy
         try:
-            cmd = ["uv", "run", "cdk", "deploy", "--app", f"python {self.cdk_dir}/app.py"]
+            cmd = ["cdk", "deploy", "--app", f"python {self.cdk_dir}/app.py"]
             
             if profile:
                 cmd.extend(["--profile", profile])
@@ -190,7 +190,7 @@ class LambdaStack(Stack):
         )
 
         # Create Lambda functions
-""".format(python_version_no_DOT=self.python_version.replace(".", ""))
+""".format(python_version_no_DOT=self.python_version.replace(".", "_"))
 
         # Add Lambda functions
         for lambda_name in lambda_names:
@@ -199,7 +199,7 @@ class LambdaStack(Stack):
         # {lambda_name} Lambda function
         {lambda_name}_function = lambda_.Function(
             self, "{lambda_name.capitalize()}Function",
-            runtime=lambda_.Runtime.PYTHON_{self.python_version.replace(".", "")},
+            runtime=lambda_.Runtime.PYTHON_{self.python_version.replace(".", "_")},
             code=lambda_.Code.from_asset("{lambda_info['path']}"),
             handler="{lambda_info['handler']}",
             layers=[layer],
