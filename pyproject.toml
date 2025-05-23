@@ -3,7 +3,7 @@ name = "aws-lambda-starter"
 version = "0.1.0"
 description = "AWS Lambda Starter Project with multiple lambdas and shared libraries"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 authors = [
     {name = "Abdul Rauf", email = "abdulraufmujahid@gmail.com"}
 ]
@@ -33,7 +33,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["cli", "libs"]
+packages = ["cli"]
 
 [project.scripts]
 lambda-cli = "cli.cli:app"
@@ -41,3 +41,6 @@ lambda-cli = "cli.cli:app"
 [tool.pytest.ini_options]
 testpaths = ["libs"]
 python_files = "test_*.py"
+
+[tool.uv.workspace]
+members = ["libs/lib_common", "libs/lib_utils"]

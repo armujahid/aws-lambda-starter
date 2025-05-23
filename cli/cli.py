@@ -12,7 +12,7 @@ from rich.table import Table
 
 from cli.builder import LambdaBuilder
 from cli.invoker import LambdaInvoker
-from cli.layer_builder import LayerBuilder
+# LayerBuilder is removed as its functionality is merged into LambdaBuilder
 from cli.cdk_deployer import CDKDeployer
 
 app = typer.Typer(help="AWS Lambda Starter CLI")
@@ -25,7 +25,7 @@ LIBS_DIR = BASE_DIR / "libs"
 
 # Initialize builders
 lambda_builder = LambdaBuilder(BASE_DIR)
-layer_builder = LayerBuilder(BASE_DIR)
+# layer_builder instantiation removed
 lambda_invoker = LambdaInvoker(BASE_DIR)
 cdk_deployer = CDKDeployer(BASE_DIR)
 
@@ -66,25 +66,38 @@ def build_layer(
     ),
 ) -> None:
     """Build a Lambda layer with dependencies and shared libraries."""
+    output_path: Optional[Path] = None
     try:
-        # Use the new LayerBuilder for better integration with uv
-        if combined and include_libs and include_deps:
-            output_path = layer_builder.build_combined_layer(create_zip)
-        else:
-            console.print(
-                "[bold yellow]Note:[/] Building separate layers is not fully implemented."
-            )
-            console.print(
-                "[bold yellow]Using the basic layer builder from the builder module instead.[/]"
-            )
+        if combined:
+            console.print("[bold]Building combined layer (includes shared libraries and all dependencies)...[/]")
+            # The create_zip flag is passed to build_combined_layer
+            output_path = lambda_builder.build_combined_layer(create_zip=create_zip)
+            console.print(f"[green]Combined layer built successfully at:[/] {output_path}")
+            if create_zip:
+                 console.print(f"[green]Zip file created at:[/] {output_path.parent / (output_path.name + '.zip')}")
 
-            # Fall back to the basic builder for separate layers
-            if include_libs:
-                lambda_builder.build_libs_layer()
-            if include_deps:
-                lambda_builder.build_deps_layer()
+
+        elif include_deps and not include_libs:
+            console.print("[bold]Building external dependencies-only layer...[/]")
+            # build_deps_layer now handles its own zipping and output.
+            # The create_zip CLI flag is conceptually covered by this path.
+            output_path = lambda_builder.build_deps_layer()
+            console.print(f"[green]External dependencies-only layer built successfully at:[/] {output_path}")
+            # build_deps_layer creates a zip, path is to the content dir, zip is named inside.
+            console.print(f"[green]Zip file created at:[/] {output_path.parent / (output_path.name + '-layer.zip')}")
+
+
+        elif include_libs: # and combined is False
+            console.print("[bold yellow]Info:[/] Building a layer with only shared libraries (and not their transitive dependencies, or without project external dependencies) is no longer a separate option.")
+            console.print("Use --combined to build shared libraries with all their dependencies.")
+            console.print("Use --no-include-libs --include-deps for an external-dependencies-only layer.")
+            console.print("If you need a layer of ONLY specific shared libraries, this functionality would need to be re-added or handled manually.")
+
+        else: # combined is False, include_deps is False, include_libs is False
+            console.print("Nothing to build. Please specify --combined, or --include-deps (without --include-libs), or --include-libs (which will show this message).")
+
     except Exception as e:
-        console.print(f"[bold red]Error building layer:[/] {str(e)}")
+        console.print(f"[bold red]Error building layer:[/] {str(e)} - Type: {type(e).__name__}")
         sys.exit(1)
 
 
@@ -348,7 +361,7 @@ def deploy_cdk(
         # Build the layer if requested
         if build_layer:
             console.print("[bold]Building Lambda layer before deployment...[/]")
-            layer_builder.build_combined_layer(create_zip=True)
+            lambda_builder.build_combined_layer(create_zip=True) # Changed to lambda_builder
 
         # Deploy the Lambda functions
         console.print("[bold]Deploying Lambda functions with CDK...[/]")
