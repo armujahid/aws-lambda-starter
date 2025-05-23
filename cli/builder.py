@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Set
+from typing import Optional # For Path | None
 
 from rich.console import Console
 
@@ -71,237 +71,268 @@ class LambdaBuilder:
         console.print(f"[bold green]Lambda function zip created:[/] {zip_path}")
         return output_path
 
-    def build_combined_layer(self) -> Path:
+    def build_combined_layer(self, create_zip: bool = True) -> Path:
         """Build a combined Lambda layer with dependencies and shared libraries.
+
+        Args:
+            create_zip: Whether to create a zip file of the layer
 
         Returns:
             Path to the built layer
         """
         console.print("[bold green]Building combined Lambda layer[/]")
 
-        # Create output directory
-        output_path = self.output_dir / "layers" / "combined"
-        output_path.mkdir(parents=True, exist_ok=True)
+        # Define output directory for the combined layer
+        # Note: self.output_dir is the general dist/ directory.
+        # Layers should go into self.output_dir / "layers" / "combined"
+        layer_specific_output_dir = self.output_dir / "layers" / "combined"
+        layer_specific_output_dir.mkdir(parents=True, exist_ok=True)
 
         # Create a temporary directory for building
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
             # Create python directory structure required for Lambda layers
-            python_dir = temp_path / "python"
-            python_dir.mkdir()
+            # This is where dependencies will be installed.
+            python_install_dir = temp_path / "python"
+            python_install_dir.mkdir()
 
-            # Install libraries and dependencies
-            self._install_dependencies(python_dir)
-            self._install_shared_libs(python_dir)
+            # Install dependencies (which now include shared libraries via uv workspace)
+            self._install_dependencies(python_install_dir) # Installs into temp_path/python
 
-            # Copy to output directory
-            for item in python_dir.glob("*"):
-                if item.is_dir():
-                    shutil.copytree(item, output_path / item.name, dirs_exist_ok=True)
-                else:
-                    shutil.copy(item, output_path / item.name)
+            # Copy the populated python_install_dir to the final layer structure
+            # The final structure for the layer contents should be layer_specific_output_dir/python
+            self._copy_layer_contents(python_install_dir, layer_specific_output_dir)
 
-        console.print("[bold green]Combined Lambda layer built successfully[/]")
-        return output_path
+            # Create zip file if requested
+            if create_zip:
+                # The zip should be created from the contents of layer_specific_output_dir
+                # and placed in self.output_dir / "layers"
+                zip_path = self._create_layer_zip(layer_specific_output_dir, "combined-layer")
+                console.print(f"[bold green]Layer zip created:[/] {zip_path}")
 
-    def build_libs_layer(self) -> Path:
-        """Build a Lambda layer with shared libraries.
-
-        Returns:
-            Path to the built layer
-        """
-        console.print("[bold green]Building shared libraries layer[/]")
-
-        # Create output directory
-        output_path = self.output_dir / "layers" / "libs"
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Create a temporary directory for building
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-
-            # Create python directory structure required for Lambda layers
-            python_dir = temp_path / "python"
-            python_dir.mkdir()
-
-            # Copy shared libraries
-            for lib_name in os.listdir(self.libs_dir):
-                lib_path = self.libs_dir / lib_name
-                src_path = lib_path / "src"
-                if lib_path.is_dir() and src_path.exists():
-                    for package in src_path.glob("*"):
-                        if package.is_dir() and not package.name.startswith("__"):
-                            dest_path = python_dir / package.name
-                            shutil.copytree(package, dest_path, dirs_exist_ok=True)
-                            console.print(f"  - Copied {package.name} to layer")
-
-            # Create a zip file for deployment
-            zip_path = output_path / "libs-layer.zip"
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                # Add files maintaining the python/ directory structure
-                for root, _, files in os.walk(python_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, temp_path)
-                        zipf.write(file_path, arcname)
-
-            # Copy files to output directory
-            for item in python_dir.glob("*"):
-                if item.is_dir():
-                    shutil.copytree(item, output_path / item.name, dirs_exist_ok=True)
-                else:
-                    shutil.copy(item, output_path / item.name)
-
-        console.print(f"[bold green]Shared libraries layer zip created:[/] {zip_path}")
-        return output_path
+        console.print(
+            f"[bold green]Combined Lambda layer built successfully:[/] {layer_specific_output_dir}"
+        )
+        return layer_specific_output_dir
 
     def build_deps_layer(self) -> Path:
-        """Build a Lambda layer with dependencies.
+        """Build a Lambda layer with external dependencies only.
 
         Returns:
-            Path to the built layer
+            Path to the built layer (contents, not the zip).
         """
-        console.print("[bold green]Building dependencies layer[/]")
+        console.print("[bold green]Building dependencies-only layer[/]")
 
-        # Create output directory
-        output_path = self.output_dir / "layers" / "deps"
-        output_path.mkdir(parents=True, exist_ok=True)
+        layer_specific_output_dir = self.output_dir / "layers" / "deps"
+        layer_specific_output_dir.mkdir(parents=True, exist_ok=True)
+        
+        requirements_file_path: Path | None = None
 
-        # Create a temporary directory for building
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
+            python_install_dir = temp_path / "python"
+            python_install_dir.mkdir()
 
-            # Create python directory structure required for Lambda layers
-            python_dir = temp_path / "python"
-            python_dir.mkdir()
-
-            # Create a requirements.txt file with all dependencies
-            requirements = self._collect_dependencies()
-            requirements_file = temp_path / "requirements.txt"
-            with open(requirements_file, "w") as f:
-                for dep in requirements:
-                    f.write(f"{dep}\n")
-
-            # Install dependencies
             try:
-                subprocess.run(
-                    [
-                        "uv",
-                        "pip",
-                        "install",
-                        "-r",
-                        str(requirements_file),
-                        "--target",
-                        str(python_dir),
-                    ],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                console.print(
-                    f"[green]Successfully installed dependencies:[/] {', '.join(requirements)}"
-                )
-            except subprocess.CalledProcessError as e:
-                console.print(f"[bold red]Error installing dependencies:[/] {e.stderr}")
-                raise
+                requirements_file_path = self._collect_dependencies_external_only()
 
-            # Create a zip file for deployment
-            zip_path = output_path / "deps-layer.zip"
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                # Add files maintaining the python/ directory structure
-                for root, _, files in os.walk(python_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, temp_path)
-                        zipf.write(file_path, arcname)
-
-            # Copy files to output directory
-            for item in python_dir.glob("*"):
-                if item.is_dir():
-                    shutil.copytree(item, output_path / item.name, dirs_exist_ok=True)
+                if not requirements_file_path.exists() or requirements_file_path.stat().st_size == 0:
+                    console.print("[yellow]No external dependencies found to install.[/]")
                 else:
-                    shutil.copy(item, output_path / item.name)
+                    console.print(f"Installing external dependencies from {requirements_file_path} to {python_install_dir}")
+                    subprocess.run(
+                        [
+                            "uv", "pip", "install",
+                            "-r", str(requirements_file_path),
+                            "--target", str(python_install_dir),
+                        ],
+                        check=True, capture_output=True, text=True,
+                    )
+                    console.print(f"[green]Successfully installed external dependencies to {python_install_dir}[/]")
+                
+                # Copy contents from the temporary installation directory to the final layer structure
+                self._copy_layer_contents(python_install_dir, layer_specific_output_dir)
 
-        console.print(f"[bold green]Dependencies layer zip created:[/] {zip_path}")
-        return output_path
+            except subprocess.CalledProcessError as e:
+                console.print(f"[bold red]Error installing external dependencies:[/] {e.stderr}")
+                raise
+            except Exception as e:
+                console.print(f"[bold red]An unexpected error occurred in build_deps_layer:[/] {str(e)}")
+                raise
+            finally:
+                if requirements_file_path and requirements_file_path.exists():
+                    try:
+                        requirements_file_path.unlink(missing_ok=True)
+                        console.print(f"[green]Cleaned up temporary external requirements file: {requirements_file_path}[/]")
+                    except OSError as e:
+                        console.print(f"[bold red]Error deleting temporary external requirements file {requirements_file_path}:[/] {e}")
+            
+            # Create zip file from the final layer structure directory
+            zip_path = self._create_layer_zip(layer_specific_output_dir, "deps-layer")
+            console.print(f"[bold green]Dependencies-only layer zip created:[/] {zip_path}")
 
-    def _install_shared_libs(self, target_dir: Path) -> None:
-        """Install shared libraries from the libs directory.
-
-        Args:
-            target_dir: Directory to install the libraries to
-        """
-        console.print("[yellow]Installing shared libraries...[/]")
-
-        # In a real implementation, this would build and install the libraries
-        # For demonstration, we'll just copy the source files
-        for lib in os.listdir(self.libs_dir):
-            lib_path = self.libs_dir / lib
-            if lib_path.is_dir() and (lib_path / "pyproject.toml").exists():
-                src_path = lib_path / "src"
-                if src_path.exists():
-                    for package in src_path.glob("*"):
-                        if package.is_dir() and not package.name.startswith("__"):
-                            dest_path = target_dir / package.name
-                            shutil.copytree(package, dest_path, dirs_exist_ok=True)
-                            console.print(f"  - Installed {package.name}")
+        console.print(f"[bold green]Dependencies-only layer built successfully:[/] {layer_specific_output_dir}")
+        return layer_specific_output_dir
 
     def _install_dependencies(self, target_dir: Path) -> None:
-        """Install dependencies using uv.
+        """Collects ALL dependencies (including shared workspace libs) and installs them using uv.
 
         Args:
-            target_dir: Directory to install the dependencies to
+            target_dir: Directory to install the dependencies to.
         """
-        console.print("[yellow]Installing dependencies...[/]")
+        console.print("[bold]Collecting and installing ALL dependencies (including shared libs) with uv...[/]")
+        requirements_file_path: Path | None = None
 
-        # Collect all dependencies from lambda functions and shared libraries
-        dependencies = self._collect_dependencies()
+        try:
+            requirements_file_path = self._collect_dependencies()
 
-        # In a real implementation, this would use uv to install the dependencies
-        # For demonstration, we'll just print what would be installed
-        for dep in dependencies:
-            console.print(f"  - Would install {dep}")
+            if not requirements_file_path.exists() or requirements_file_path.stat().st_size == 0:
+                console.print("[yellow]No dependencies found to install (requirements file is empty or missing).[/]")
+                return
 
-        console.print(
-            "[yellow]Note: In a real implementation, this would run something like:[/]"
-        )
-        console.print(
-            f"  uv pip install --target {target_dir} {' '.join(dependencies)}"
-        )
+            console.print(f"Installing all dependencies from {requirements_file_path} to {target_dir}")
+            subprocess.run(
+                [
+                    "uv", "pip", "install",
+                    "--target", str(target_dir),
+                    "-r", str(requirements_file_path),
+                ],
+                check=True, capture_output=True, text=True,
+            )
+            console.print("[green]Successfully installed all dependencies and shared libraries[/]")
 
-    def _collect_dependencies(self) -> Set[str]:
-        """Collect all dependencies from lambda functions and shared libraries.
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Error during dependency processing:[/] {e.stderr}")
+            raise
+        except FileNotFoundError:
+            console.print(f"[bold red]Error: Requirements file not found at {requirements_file_path}.[/]")
+            raise
+        except Exception as e:
+            console.print(f"[bold red]An unexpected error occurred during dependency installation:[/] {str(e)}")
+            raise
+        finally:
+            if requirements_file_path and requirements_file_path.exists():
+                try:
+                    requirements_file_path.unlink(missing_ok=True)
+                    console.print(f"[green]Cleaned up temporary requirements file: {requirements_file_path}[/]")
+                except OSError as e:
+                    console.print(f"[bold red]Error deleting temporary requirements file {requirements_file_path}:[/] {e}")
+
+    def _collect_dependencies(self) -> Path:
+        """Generates a temporary requirements file using 'uv export' for ALL workspace dependencies.
+        
+        Note: The caller of this method is responsible for deleting the temporary file.
 
         Returns:
-            Set of dependencies
+            Path to the generated temporary requirements file.
         """
-        dependencies = set()
+        temp_requirements_file = self.base_dir / "temp-requirements-export.txt" # Reusing name, context is 'all'
+        
+        console.print(
+            f"[bold]Exporting ALL workspace dependencies to {temp_requirements_file} using uv...[/]"
+        )
+        try:
+            subprocess.run(
+                [
+                    "uv", "export",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-editable",
+                    "-o", str(temp_requirements_file),
+                ],
+                check=True, capture_output=True, text=True, cwd=self.base_dir,
+            )
+            console.print(f"[green]Successfully exported ALL dependencies to {temp_requirements_file}[/]")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Error exporting ALL dependencies with uv:[/] {e.stderr}")
+            raise
+        except FileNotFoundError: 
+            console.print(f"[bold red]Error: 'uv' command not found. Ensure uv is installed and in PATH.[/]")
+            raise
+        return temp_requirements_file
 
-        # Collect dependencies from shared libraries
-        for lib_name in os.listdir(self.libs_dir):
-            lib_path = self.libs_dir / lib_name
-            pyproject_path = lib_path / "pyproject.toml"
-            if lib_path.is_dir() and pyproject_path.exists():
-                # Parse pyproject.toml to get dependencies
-                try:
-                    with open(pyproject_path, "r") as f:
-                        content = f.read()
+    def _collect_dependencies_external_only(self) -> Path:
+        """Generates a temporary requirements file for EXTERNAL dependencies only using 'uv export --no-emit-workspace'.
+        
+        Note: The caller is responsible for deleting the temporary file.
 
-                    if "[project.dependencies]" in content:
-                        deps_section = content.split("[project.dependencies]")[1].split(
-                            "["
-                        )[0]
-                        for line in deps_section.strip().split("\n"):
-                            if "=" in line:
-                                dep_name = line.split("=")[0].strip()
-                                if dep_name and not dep_name.startswith(
-                                    "lib_"
-                                ):  # Skip local libs
-                                    dependencies.add(dep_name)
-                except Exception as e:
-                    console.print(
-                        f"[bold red]Error parsing dependencies for {lib_name}:[/] {str(e)}"
-                    )
+        Returns:
+            Path to the generated temporary requirements file.
+        """
+        # Using a distinct name for clarity, though it's still temporary
+        temp_requirements_file = self.base_dir / "temp-requirements-external-export.txt"
+        
+        console.print(
+            f"[bold]Exporting EXTERNAL-ONLY dependencies to {temp_requirements_file} using uv...[/]"
+        )
+        try:
+            subprocess.run(
+                [
+                    "uv", "export",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-editable",
+                    "--no-emit-workspace", # Key flag for this method
+                    "-o", str(temp_requirements_file),
+                ],
+                check=True, capture_output=True, text=True, cwd=self.base_dir,
+            )
+            console.print(f"[green]Successfully exported EXTERNAL-ONLY dependencies to {temp_requirements_file}[/]")
+        except subprocess.CalledProcessError as e:
+            console.print(f"[bold red]Error exporting EXTERNAL-ONLY dependencies with uv:[/] {e.stderr}")
+            raise
+        except FileNotFoundError:
+            console.print(f"[bold red]Error: 'uv' command not found. Ensure uv is installed and in PATH.[/]")
+            raise
+        return temp_requirements_file
 
-        return dependencies
+    def _copy_layer_contents(self, source_dir: Path, output_dir: Path) -> None:
+        """Copy layer contents to the output directory.
+
+        Args:
+            source_dir: Source directory (e.g., temp_install_dir/python)
+            output_dir: Output directory (e.g., dist/layers/my_layer)
+                        The structure will be output_dir/python/...
+        """
+        # Ensure we have a python directory in the output_dir for the layer structure
+        python_target_dir = output_dir / "python"
+        python_target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy the contents of the source_dir (which should be a 'python' directory itself
+        # or contain packages directly) into the python_target_dir.
+        for item in source_dir.iterdir(): # Use iterdir for direct children
+            dest_path = python_target_dir / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest_path, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest_path) # copy2 preserves more metadata
+
+    def _create_layer_zip(self, layer_content_dir: Path, zip_name: str) -> Path:
+        """Create a zip file of the layer from its content directory.
+           The content_dir is expected to have the 'python/' subdirectory if needed for lambda structure.
+
+        Args:
+            layer_content_dir: Directory containing the layer contents (e.g., dist/layers/my_layer,
+                               which should contain python/my_package, etc.)
+            zip_name: Name of the zip file (e.g., "combined-layer")
+
+        Returns:
+            Path to the created zip file (e.g., dist/layers/combined-layer.zip)
+        """
+        # The zip file will be placed in the parent of layer_content_dir if it's specific
+        # or self.output_dir / "layers" for a more general approach.
+        # Let's assume zip_name does not include .zip
+        zip_path = layer_content_dir.parent / f"{zip_name}.zip"
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # Walk through the layer_content_dir (e.g., dist/layers/combined)
+            # The paths in the zip should be relative to this directory.
+            # e.g., files under dist/layers/combined/python should be zipped as python/...
+            for root, _, files in os.walk(layer_content_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    # arcname is the path inside the zip file
+                    arcname = file_path.relative_to(layer_content_dir)
+                    zipf.write(file_path, arcname)
+        return zip_path

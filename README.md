@@ -97,16 +97,25 @@ uv run main.py list-libs
 
 ### Build Lambda Layers
 
-Build a combined layer with dependencies and shared libraries:
+This command allows you to build layers for your Lambda functions.
+
+**1. Build a Combined Layer (Recommended):**
+This creates a single layer containing all external dependencies (from `pyproject.toml` and your shared libraries) AND all your shared local libraries (from the `libs` directory). This is typically the most straightforward approach.
 ```bash
 uv run main.py build-layer
+# or explicitly:
+uv run main.py build-layer --combined
+```
+You can also specify `--no-create-zip` if you only want the layer contents on disk and not the zip file.
+
+**2. Build an External Dependencies-Only Layer:**
+This creates a layer containing only external dependencies, excluding your shared local libraries from the `libs` directory.
+```bash
+uv run main.py build-layer --no-combined --no-include-libs --include-deps
 ```
 
-Or build separate layers:
-```bash
-uv run main.py build-layer --no-combined --include-libs
-uv run main.py build-layer --no-combined --include-deps
-```
+**Note on Shared Libraries:**
+Building a layer that *only* contains shared local libraries (e.g., from the `libs` directory without their own dependencies or project-wide dependencies) is no longer a direct option. The `--combined` mode is the recommended way to package shared libraries, as it ensures they are bundled with all necessary transitive dependencies and project dependencies.
 
 ### Build a Lambda Function
 
